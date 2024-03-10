@@ -68,9 +68,6 @@ class TradingEnv(gym.Env):
     :param max_episode_duration: If a integer value is used, each episode will be truncated after reaching the desired max duration in steps (by returning `truncated` as `True`). When using a max duration, each episode will start at a random starting point.
     :type max_episode_duration: optional - int or 'max'
 
-    :param max_episode_duration: If a integer value is used, each episode will be truncated after reaching the desired max duration in steps (by returning `truncated` as `True`). When using a max duration, each episode will start at a random starting point.
-    :type max_episode_duration: optional - int or 'max'
-
     :param verbose: If 0, no log is outputted. If 1, the env send episode result logs.
     :type verbose: optional - int
     
@@ -94,6 +91,7 @@ class TradingEnv(gym.Env):
                 name = "Stock",
                 render_mode= "logs"
                 ):
+        
         self.max_episode_duration = max_episode_duration
         self.name = name
         self.verbose = verbose
@@ -149,6 +147,7 @@ class TradingEnv(gym.Env):
     
     def _get_ticker(self, delta = 0):
         return self.df.iloc[self._idx + delta]
+    
     def _get_price(self, delta = 0):
         return self._price_array[self._idx + delta]
     
@@ -160,6 +159,7 @@ class TradingEnv(gym.Env):
             _step_index = self._idx
         else: 
             _step_index = np.arange(self._idx + 1 - self.windows , self._idx + 1)
+            
         return self._obs_array[_step_index]
 
     
@@ -217,6 +217,7 @@ class TradingEnv(gym.Env):
         if position != self._position:
             self._trade(position)
     
+    
     def _take_action_order_limit(self):
         if len(self._limit_orders) > 0:
             ticker = self._get_ticker()
@@ -234,12 +235,14 @@ class TradingEnv(gym.Env):
         }
     
     def step(self, position_index = None):
-        if position_index is not None: self._take_action(self.positions[position_index])
+        if position_index is not None: 
+            self._take_action(self.positions[position_index])
+        
         self._idx += 1
         self._step += 1
 
-        self._take_action_order_limit()
-        price = self._get_price()
+        self._take_action_order_limit() # 이부분 모르겠다..
+        price = self._get_price() # 이부분도 모르겠다..
         self._portfolio.update_interest(borrow_interest_rate= self.borrow_interest_rate)
         portfolio_value = self._portfolio.valorisation(price)
         portfolio_distribution = self._portfolio.get_portfolio_distribution()
@@ -248,8 +251,10 @@ class TradingEnv(gym.Env):
 
         if portfolio_value <= 0:
             done = True
+            
         if self._idx >= len(self.df) - 1:
             truncated = True
+            
         if isinstance(self.max_episode_duration,int) and self._step >= self.max_episode_duration - 1:
             truncated = True
 
@@ -272,6 +277,7 @@ class TradingEnv(gym.Env):
         if done or truncated:
             self.calculate_metrics()
             self.log()
+            
         return self._get_obs(),  self.historical_info["reward", -1], done, truncated, self.historical_info[-1]
 
     def add_metric(self, name, function):
@@ -279,16 +285,18 @@ class TradingEnv(gym.Env):
             'name': name,
             'function': function
         })
+        
     def calculate_metrics(self):
         self.results_metrics = {
             "Market Return" : f"{100*(self.historical_info['data_close', -1] / self.historical_info['data_close', 0] -1):5.2f}%",
             "Portfolio Return" : f"{100*(self.historical_info['portfolio_valuation', -1] / self.historical_info['portfolio_valuation', 0] -1):5.2f}%",
         }
-
         for metric in self.log_metrics:
             self.results_metrics[metric['name']] = metric['function'](self.historical_info)
+    
     def get_metrics(self):
         return self.results_metrics
+    
     def log(self):
         if self.verbose > 0:
             text = ""
