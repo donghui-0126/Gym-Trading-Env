@@ -68,7 +68,5 @@ to-do list
 - position 청산을 기반으로한 reward function 생성
    - short->long | long->short 으로 포지션 변화시 포지션 청산로직       
 - stop condition 함수 생성
-- 자산별 borrowing fee 다르게 초기화
-
 
 
