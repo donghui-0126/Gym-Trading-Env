@@ -5,6 +5,7 @@ import numpy as np
 import datetime
 import glob
 from pathlib import Path    
+import random
 
 from collections import Counter
 from .utils.history import History
@@ -16,6 +17,10 @@ warnings.filterwarnings("error")
 
 def basic_reward_function(history : History):
     return np.log(history["portfolio_valuation", -1] / history["portfolio_valuation", -2])
+
+def basic_reward_function_when_execute(history : History):
+    position_duration = history["step", -1]
+    return np.log(history["portfolio_valuation", -2] / history["portfolio_valuation", -(position_duration+1)])
 
 def dynamic_feature_last_position_taken(history):
     return history['position', -1]
@@ -79,17 +84,22 @@ class TradingEnv(gym.Env):
     def __init__(self,
                 df : pd.DataFrame,
                 positions : list = [0, 1],
-                dynamic_feature_functions = [dynamic_feature_last_position_taken, dynamic_feature_real_position],
+                dynamic_feature_functions = [   dynamic_feature_last_position_taken, dynamic_feature_real_position],
                 reward_function = basic_reward_function,
+                basic_reward_function_when_execute = basic_reward_function_when_execute,
                 windows = None,
                 trading_fees = 0,
-                borrow_interest_rate = 0,
+                asset_borrow_interest_rate = 0,
+                fiat_borrow_interest_rate = 0,
                 portfolio_initial_value = 1000,
                 initial_position ='random',
                 max_episode_duration = 'max',
                 verbose = 1,
                 name = "Stock",
-                render_mode= "logs"
+                render_mode= "logs",
+                trading_stop_function = None,
+                get_reward_when_execute = False,
+                random_start = False
                 ):
         
         self.max_episode_duration = max_episode_duration
@@ -99,9 +109,11 @@ class TradingEnv(gym.Env):
         self.positions = positions
         self.dynamic_feature_functions = dynamic_feature_functions
         self.reward_function = reward_function
+        self.basic_reward_function_when_execute = basic_reward_function_when_execute
         self.windows = windows
         self.trading_fees = trading_fees
-        self.borrow_interest_rate = borrow_interest_rate
+        self.asset_borrow_interest_rate = asset_borrow_interest_rate
+        self.fiat_borrow_interest_rate = fiat_borrow_interest_rate
         self.portfolio_initial_value = float(portfolio_initial_value)
         self.initial_position = initial_position
         assert self.initial_position in self.positions or self.initial_position == 'random', "The 'initial_position' parameter must be 'random' or a position mentionned in the 'position' (default is [0, 1]) parameter."
@@ -109,6 +121,9 @@ class TradingEnv(gym.Env):
         self.max_episode_duration = max_episode_duration
         self.render_mode = render_mode
         self._set_df(df)
+        self.trading_stop_function = trading_stop_function
+        self.get_reward_when_execute = get_reward_when_execute
+        self.random_start = random_start
         
         self.action_space = spaces.Discrete(len(positions))
         self.observation_space = spaces.Box(
@@ -140,7 +155,9 @@ class TradingEnv(gym.Env):
 
         self.df = df
         self._obs_array = np.array(self.df[self._features_columns], dtype= np.float32)
+        
         self._info_array = np.array(self.df[self._info_columns])
+
         self._price_array = np.array(self.df["close"])
 
 
@@ -164,14 +181,20 @@ class TradingEnv(gym.Env):
 
     
     def reset(self, seed = None, options=None):
+        """
+        step: position과 관련된 변수
+        idx: 매 action에서 참고하는 df의 idx와 관련된 변수
+        """
         super().reset(seed = seed)
-        
+                    
         self._step = 0
         self._position = np.random.choice(self.positions) if self.initial_position == 'random' else self.initial_position
         self._limit_orders = {}
-        
-
+            
         self._idx = 0
+        if self.random_start:
+            self._idx = random.randint(0, len(self.df) - 3)
+            
         if self.windows is not None: self._idx = self.windows - 1
         if self.max_episode_duration != 'max':
             self._idx = np.random.randint(
@@ -197,6 +220,7 @@ class TradingEnv(gym.Env):
             portfolio_valuation = self.portfolio_initial_value,
             portfolio_distribution = self._portfolio.get_portfolio_distribution(),
             reward = 0,
+            execute = False
         )
 
         return self._get_obs(), self.historical_info[0]
@@ -208,7 +232,8 @@ class TradingEnv(gym.Env):
         self._portfolio.trade_to_position(
             position, 
             price = self._get_price() if price is None else price, 
-            trading_fees = self.trading_fees
+            trading_fees = self.trading_fees,
+            execute_when_position_direction_change = False
         )
         self._position = position
         return
@@ -235,23 +260,34 @@ class TradingEnv(gym.Env):
         }
     
     def step(self, position_index = None):
+        execute = (self.historical_info["position",-1] < self.positions[position_index])
+        
+        # 현재 index의 가격으로 거래를 한다고 가정함.
         if position_index is not None: 
             self._take_action(self.positions[position_index])
         
         self._idx += 1
         self._step += 1
 
-        self._take_action_order_limit() # 이부분 모르겠다..
-        price = self._get_price() # 이부분도 모르겠다..
-        self._portfolio.update_interest(borrow_interest_rate= self.borrow_interest_rate)
+        # 다음 인덱스의 가격을 기반으로 포트폴리오 평가가 이뤄짐.
+        self._take_action_order_limit() # add_limit order를 통해서 limit order도 설정가능함.
+        price = self._get_price() 
+        self._portfolio.update_interest(fiat_borrow_interest_rate= self.fiat_borrow_interest_rate, 
+                                        asset_borrow_interest_rate =self.asset_borrow_interest_rate)
         portfolio_value = self._portfolio.valorisation(price)
         portfolio_distribution = self._portfolio.get_portfolio_distribution()
 
-        done, truncated = False, False
+        done, truncated, trading_stop_by_function = False, False, False
 
+        if self.trading_stop_function != None:
+            trading_stop_by_function = self.trading_stop_function(self.historical_info)
+        
         if portfolio_value <= 0:
             done = True
             
+        if trading_stop_by_function:
+            done = True
+        
         if self._idx >= len(self.df) - 1:
             truncated = True
             
@@ -268,12 +304,20 @@ class TradingEnv(gym.Env):
             data =  dict(zip(self._info_columns, self._info_array[self._idx])),
             portfolio_valuation = portfolio_value,
             portfolio_distribution = portfolio_distribution, 
-            reward = 0
+            reward = 0,
+            execute = execute,
         )
+        
         if not done:
-            reward = self.reward_function(self.historical_info)
-            self.historical_info["reward", -1] = reward
+            if self.get_reward_when_execute:
+                if execute:
+                    reward = self.basic_reward_function_when_execute(self.historical_info)
+                    self.historical_info["reward", -1] = reward
+            else:
+                reward = self.reward_function(self.historical_info)
+                self.historical_info["reward", -1] = reward
 
+        
         if done or truncated:
             self.calculate_metrics()
             self.log()

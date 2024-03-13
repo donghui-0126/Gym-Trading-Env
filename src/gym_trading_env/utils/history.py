@@ -18,6 +18,7 @@ class History:
         self.history_storage = np.zeros(shape=(self.height, self.width), dtype= 'O')
         self.size = 0
         self.add(**kwargs)
+        
     def add(self, **kwargs):
         values = []
         columns = []
@@ -39,6 +40,7 @@ class History:
             raise ValueError(f"Make sur that your inputs match the initial ones... Initial ones : {self.columns}. New ones {columns}")
     def __len__(self):
         return self.size
+    
     def __getitem__(self, arg):
         if isinstance(arg, tuple):
             column, t = arg
@@ -57,6 +59,7 @@ class History:
             except ValueError as e:
                 raise ValueError(f"Feature {column} does not exist ... Check the available features : {self.columns}")
             return self.history_storage[:self.size][:, column_index]
+        
         if isinstance(arg, list):
             columns = arg
             column_indexes = []
