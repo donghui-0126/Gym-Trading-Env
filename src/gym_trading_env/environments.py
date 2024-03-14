@@ -97,8 +97,8 @@ class TradingEnv(gym.Env):
                 verbose = 1,
                 name = "Stock",
                 render_mode= "logs",
+                is_action_continuous = False,
                 trading_stop_function = None,
-                get_reward_when_execute = False,
                 random_start = False
                 ):
         
@@ -120,17 +120,26 @@ class TradingEnv(gym.Env):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.max_episode_duration = max_episode_duration
         self.render_mode = render_mode
-        self._set_df(df)
+        self.is_action_continuous = is_action_continuous
         self.trading_stop_function = trading_stop_function
-        self.get_reward_when_execute = get_reward_when_execute
         self.random_start = random_start
         
-        self.action_space = spaces.Discrete(len(positions))
+        self.max_position = max(self.positions)
+        self.min_position = min(self.positions)
+        
+        self._set_df(df)
+        
+        if is_action_continuous == False:
+            self.action_space = spaces.Discrete(len(positions))
+        elif is_action_continuous == True:
+            self.action_space = spaces.Box(low=self.min_position, high=self.max_position, dtype=np.float32)
+        
         self.observation_space = spaces.Box(
             -np.inf,
             np.inf,
             shape = [self._nb_features]
         )
+            
         if self.windows is not None:
             self.observation_space = spaces.Box(
                 -np.inf,
@@ -186,7 +195,7 @@ class TradingEnv(gym.Env):
         idx: 매 action에서 참고하는 df의 idx와 관련된 변수
         """
         super().reset(seed = seed)
-                    
+        print("=========reset=========")
         self._step = 0
         self._position = np.random.choice(self.positions) if self.initial_position == 'random' else self.initial_position
         self._limit_orders = {}
@@ -220,7 +229,6 @@ class TradingEnv(gym.Env):
             portfolio_valuation = self.portfolio_initial_value,
             portfolio_distribution = self._portfolio.get_portfolio_distribution(),
             reward = 0,
-            execute = False
         )
 
         return self._get_obs(), self.historical_info[0]
@@ -259,12 +267,18 @@ class TradingEnv(gym.Env):
             'persistent': persistent
         }
     
-    def step(self, position_index = None):
-        execute = (self.historical_info["position",-1] < self.positions[position_index])
-        
-        # 현재 index의 가격으로 거래를 한다고 가정함.
-        if position_index is not None: 
-            self._take_action(self.positions[position_index])
+    def step(self, position_index = None, is_action_continuous = False):      
+        print(f"====step {self._step}====")  
+        # action이 연속형이라면 이산형으로 처리하기 위한 코드
+        if self.is_action_continuous == True:
+            # 사실은 position_index을 input으로 받지 않습니다.
+            # 실제 position 값을 input으로 받습니다.
+            position_index = round(position_index[0])
+            self._take_action(position_index)
+
+        else:
+            if position_index is not None: 
+                self._take_action(self.positions[position_index])
         
         self._idx += 1
         self._step += 1
@@ -305,20 +319,10 @@ class TradingEnv(gym.Env):
             portfolio_valuation = portfolio_value,
             portfolio_distribution = portfolio_distribution, 
             reward = 0,
-            execute = execute,
         )
         
-        if not done:
-            if self.get_reward_when_execute:
-                if execute:
-                    reward = self.basic_reward_function_when_execute(self.historical_info)
-                    self.historical_info["reward", -1] = reward
-            else:
-                reward = self.reward_function(self.historical_info)
-                self.historical_info["reward", -1] = reward
-
-        
         if done or truncated:
+            print("====done====")
             self.calculate_metrics()
             self.log()
             
