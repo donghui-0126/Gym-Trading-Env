@@ -64,11 +64,11 @@ pip install -e .
 [Documentation available here](https://gym-trading-env.readthedocs.io/en/latest/index.html)
 -----------------------------------------------------------------------------------------------
 
-to-do list
+Repository 개선점
 ----------
 
-- position 청산을 기반으로한 reward function 생성
-   - short->long | long->short 으로 포지션 변화시 포지션 청산로직       
-- stop condition 함수 생성
-
+- 한글 주석 / 코드 주석 추가
+- fiat borrow fee / asset borrow fee 구분
+- reward function 추가
+- Stable-Baseline3를 사용한 실습파일 추가 (PISTAR)
 
