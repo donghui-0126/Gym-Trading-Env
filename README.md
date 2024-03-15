@@ -39,7 +39,6 @@ This package aims to greatly simplify the research phase by offering :
 * Easy and quick download technical data on several exchanges
 * A simple and fast environment for the user and the AI, but which allows complex operations (Short, Margin trading).
 * A high performance rendering (can display several hundred thousand candles simultaneously), customizable to visualize the actions of its agent and its results.
-* (Coming soon) An easy way to backtest any RL-Agents or any kind 
 
 ![Render animated image](https://raw.githubusercontent.com/ClementPerroud/Gym-Trading-Env/main/docs/source/images/render.gif)
 
