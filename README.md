@@ -55,11 +55,6 @@ git clone https://github.com/donghui-0126/Gym-Trading-Env.git
 ```
 
 ```bash
-cd file_directory
-pip install -e .
-```
-
-```bash
 tensorboard --logdir ./pistar/log
 ```
 
