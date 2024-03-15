@@ -28,6 +28,12 @@ def dynamic_feature_last_position_taken(history):
 def dynamic_feature_real_position(history):
     return history['real_position', -1]
 
+def dynamic_feature_asset(history):
+    return history['asset', -1]
+
+def dynamic_feature_fiat(history):
+    return history['fiat', -1]
+
 class TradingEnv(gym.Env):
     """
     An easy trading environment for OpenAI gym. It is recommended to use it this way :
@@ -61,7 +67,10 @@ class TradingEnv(gym.Env):
     :param trading_fees: Transaction trading fees (buy and sell operations). eg: 0.01 corresponds to 1% fees
     :type trading_fees: optional - float
 
-    :param borrow_interest_rate: Borrow interest rate per step (only when position < 0 or position > 1). eg: 0.01 corresponds to 1% borrow interest rate per STEP ; if your know that your borrow interest rate is 0.05% per day and that your timestep is 1 hour, you need to divide it by 24 -> 0.05/100/24.
+    :param fiat_borrow_interest_rate: Borrow interest rate per step (only when position < 0 or position > 1). eg: 0.01 corresponds to 1% borrow interest rate per STEP ; if your know that your borrow interest rate is 0.05% per day and that your timestep is 1 hour, you need to divide it by 24 -> 0.05/100/24.
+    :type borrow_interest_rate: optional - float
+
+    :param asset_borrow_interest_rate: Borrow interest rate per step (only when position < 0 or position > 1). eg: 0.01 corresponds to 1% borrow interest rate per STEP ; if your know that your borrow interest rate is 0.05% per day and that your timestep is 1 hour, you need to divide it by 24 -> 0.05/100/24.
     :type borrow_interest_rate: optional - float
 
     :param portfolio_initial_value: Initial valuation of the portfolio.
@@ -84,7 +93,11 @@ class TradingEnv(gym.Env):
     def __init__(self,
                 df : pd.DataFrame,
                 positions : list = [0, 1],
-                dynamic_feature_functions = [   dynamic_feature_last_position_taken, dynamic_feature_real_position],
+                dynamic_feature_functions = [dynamic_feature_last_position_taken, 
+                                             dynamic_feature_real_position, 
+                                             dynamic_feature_asset, 
+                                             dynamic_feature_fiat],
+                
                 reward_function = basic_reward_function,
                 basic_reward_function_when_execute = basic_reward_function_when_execute,
                 windows = None,
@@ -229,6 +242,8 @@ class TradingEnv(gym.Env):
             portfolio_valuation = self.portfolio_initial_value,
             portfolio_distribution = self._portfolio.get_portfolio_distribution(),
             reward = 0,
+            asset = self._portfolio.get_portfolio_distribution()["asset"],
+            fiat = self._portfolio.get_portfolio_distribution()["fiat"]
         )
 
         return self._get_obs(), self.historical_info[0]
@@ -268,7 +283,6 @@ class TradingEnv(gym.Env):
         }
     
     def step(self, position_index = None, is_action_continuous = False):      
-        print(f"====step {self._step}====")  
         # action이 연속형이라면 이산형으로 처리하기 위한 코드
         if self.is_action_continuous == True:
             # 사실은 position_index을 input으로 받지 않습니다.
@@ -319,6 +333,8 @@ class TradingEnv(gym.Env):
             portfolio_valuation = portfolio_value,
             portfolio_distribution = portfolio_distribution, 
             reward = 0,
+            asset = portfolio_distribution["asset"],
+            fiat = portfolio_distribution["fiat"]
         )
         
         if done or truncated:
@@ -352,7 +368,7 @@ class TradingEnv(gym.Env):
                 text += f"{key} : {value}   |   "
             print(text)
 
-    def save_for_render(self, dir = "render_logs"):
+    def save_for_render(self, dir = "render_logs", log_name=None):
         assert "open" in self.df and "high" in self.df and "low" in self.df and "close" in self.df, "Your DataFrame needs to contain columns : open, high, low, close to render !"
         columns = list(set(self.historical_info.columns) - set([f"date_{col}" for col in self._info_columns]))
         history_df = pd.DataFrame(
@@ -362,9 +378,13 @@ class TradingEnv(gym.Env):
         history_df.sort_index(inplace = True)
         render_df = self.df.join(history_df, how = "inner")
         
+        
         if not os.path.exists(dir):os.makedirs(dir)
-        render_df.to_pickle(f"{dir}/{self.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl")
-
+        if log_name == None:
+            render_df.to_pickle(f"{dir}/{self.name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl")
+        else:
+            render_df.to_pickle(f"{dir}/{self.name}_{log_name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl")
+        
 class MultiDatasetTradingEnv(TradingEnv):
     """
     (Inherits from TradingEnv) A TradingEnv environment that handles multiple datasets.

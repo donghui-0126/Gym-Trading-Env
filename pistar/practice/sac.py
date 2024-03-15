@@ -31,9 +31,11 @@ test_df = df.iloc[-800:]
 def log_return_reward_function(history):
     return 800*np.log(history["portfolio_valuation", -1] / history["portfolio_valuation", -2])
 
-def paper_reward_function(history):
+def return_reward_function(history):
     return 1000*(history["portfolio_valuation", -1] - history["portfolio_valuation", -2]) / history["portfolio_valuation", -2]
 
+def paper_reward_function(history):
+    return (history["portfolio_valuation", -1] - history["portfolio_valuation", -2])
 
 train_env = gym.make(
         "TradingEnv",
@@ -85,7 +87,6 @@ model = SAC(policy="MlpPolicy",
 
 
 print("=========================train=========================")
-observation, info = train_env.reset()
 model.learn(total_timesteps=10_000)
 train_env.unwrapped.save_for_render()
 

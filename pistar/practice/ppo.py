@@ -31,10 +31,13 @@ test_df = df.iloc[-800:]
 def log_return_reward_function(history):
     return 800*np.log(history["portfolio_valuation", -1] / history["portfolio_valuation", -2])
 
-def paper_reward_function(history):
+def return_reward_function(history):
     return 1000*(history["portfolio_valuation", -1] - history["portfolio_valuation", -2]) / history["portfolio_valuation", -2]
 
+def paper_reward_function(history):
+    return (history["portfolio_valuation", -1] - history["portfolio_valuation", -2])
 
+# Train Env 구성
 train_env = gym.make(
         "TradingEnv",
         name= "stock",
@@ -50,9 +53,11 @@ train_env = gym.make(
         max_episode_duration = 'max',
     )
 
+# Train Env에서 metric을 추가해줍니다.
 train_env.unwrapped.add_metric('Position Changes', lambda history : np.sum(np.diff(history['position']) != 0) )
 train_env.unwrapped.add_metric('Episode Lenght', lambda history : len(history['position']) )
 
+# Test Env 구성
 test_env = gym.make(
         "TradingEnv",
         name= "stock",
@@ -68,13 +73,16 @@ test_env = gym.make(
         max_episode_duration = 'max',
     )
 
+# Test Env에 metric을 추가해줍니다.
 test_env.unwrapped.add_metric('Position Changes', lambda history : np.sum(np.diff(history['position']) != 0))
 test_env.unwrapped.add_metric('Episode Lenght', lambda history : len(history['position']))
 
-observation, info = train_env.reset()
+
+# 논문에 나온대로 신경망의 크기를 조절해줍니다.
 policy_kwargs = dict(activation_fn=th.nn.ReLU,
                      net_arch=dict(pi=[512, 256], vf=[512, 256]))
 
+# 모델을 불러옵니다.
 model = PPO(policy="MlpPolicy",
             tensorboard_log="C:/Users/user/Documents/GitHub/Gym-Trading-Env//pistar/log/pistar_tensorboard/",
             env=train_env, 
@@ -83,15 +91,19 @@ model = PPO(policy="MlpPolicy",
             clip_range=0.05,
             ent_coef=0.001, 
             policy_kwargs=policy_kwargs,
-            verbose=2)
+            verbose=0)
 
 
 print("=========================train=========================")
-model.learn(total_timesteps=10_000, tb_log_name="ppo")
-train_env.unwrapped.save_for_render()
+model.learn(total_timesteps=25_000, tb_log_name="ppo")
+
+# Save for render
+train_env.unwrapped.save_for_render(log_name = "ppo_train")
 
 
 print("=========================test=========================")
+
+# 학습을 하진 않고 predict만 진행하게 됩니다. 
 
 done, truncated = False, False
 observation, info = test_env.reset()
@@ -99,9 +111,10 @@ observation, info = test_env.reset()
 while not done and not truncated:
     action, _states = model.predict(observation)
     observation, reward, done, truncated, info = test_env.step(action)
+    print(observation)
     
 # Save for render
-test_env.unwrapped.save_for_render()
+test_env.unwrapped.save_for_render(log_name="ppo_test")
 
     
 renderer = Renderer(render_logs_dir="render_logs")
