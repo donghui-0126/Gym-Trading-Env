@@ -48,15 +48,17 @@ Installation
 
 Gym Trading Env supports Python 3.9+ on Windows, Mac, and Linux. You can install it using pip:
 
-```bash
-pip install gym-trading-env
-```
 
 Or using git :
 
 ```bash
-git clone https://github.com/ClementPerroud/Gym-Trading-Env
+git clone https://github.com/donghui-0126/Gym-Trading-Env.git
 ```
+
+```bash
+cd file_directory
+pip install -e .
+
 
 
 [Documentation available here](https://gym-trading-env.readthedocs.io/en/latest/index.html)
