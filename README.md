@@ -58,7 +58,7 @@ git clone https://github.com/donghui-0126/Gym-Trading-Env.git
 ```bash
 cd file_directory
 pip install -e .
-
+```
 
 
 [Documentation available here](https://gym-trading-env.readthedocs.io/en/latest/index.html)
