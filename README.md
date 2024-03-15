@@ -60,6 +60,10 @@ cd file_directory
 pip install -e .
 ```
 
+```bash
+tensorboard --logdir ./pistar/log
+```
+
 
 [Documentation available here](https://gym-trading-env.readthedocs.io/en/latest/index.html)
 -----------------------------------------------------------------------------------------------
