@@ -87,7 +87,7 @@ model = SAC(policy="MlpPolicy",
 
 
 print("=========================train=========================")
-model.learn(total_timesteps=10_000)
+model.learn(total_timesteps=100)
 train_env.unwrapped.save_for_render()
 
 

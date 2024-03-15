@@ -102,9 +102,7 @@ train_env.unwrapped.save_for_render(log_name = "ppo_train")
 
 
 print("=========================test=========================")
-
 # 학습을 하진 않고 predict만 진행하게 됩니다. 
-
 done, truncated = False, False
 observation, info = test_env.reset()
 
