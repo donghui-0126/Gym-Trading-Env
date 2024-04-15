@@ -38,9 +38,11 @@ class Renderer():
             {"name": name, "function":function}
         )
         if line_options is not None: self.lines[-1]["line_options"] = line_options
+    
     def compute_metrics(self, df):
         for metric in self.metrics:
             metric["value"] = metric["function"](df)
+    
     def run(self,):
         @self.app.route("/")
         def index():
